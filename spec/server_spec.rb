@@ -51,7 +51,7 @@ RSpec.describe Capybara::Server do
 
   it "should use given port" do
     @app = proc { |_env| [200, {}, ["Hello Server!"]] }
-    @server = Capybara::Server.new(@app, 22790).boot
+    @server = Capybara::Server.new(@app, port: 22790).boot
 
     @res = Net::HTTP.start(@server.host, 22790) { |http| http.get('/') }
     expect(@res.body).to include('Hello Server')
@@ -71,6 +71,22 @@ RSpec.describe Capybara::Server do
 
     @res2 = Net::HTTP.start(@server2.host, @server2.port) { |http| http.get('/') }
     expect(@res2.body).to include('Hello Second Server')
+  end
+
+  it "should support SSL" do
+    begin
+      key = File.join(Dir.pwd, "spec", "fixtures", "key.pem")
+      cert = File.join(Dir.pwd, "spec", "fixtures", "certificate.pem")
+      Capybara.server = :puma, { Host: "ssl://#{Capybara.server_host}?key=#{key}&cert=#{cert}" }
+      app = proc { |_env| [200, {}, ['Hello SSL Server!']] }
+      server = Capybara::Server.new(app).boot
+      res = Net::HTTP.start(server.host, server.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |https|
+        https.get('/')
+      end
+      expect(res.body).to include('Hello SSL Server!')
+    ensure
+      Capybara.server = :default
+    end
   end
 
   context "When Capybara.reuse_server is true" do
