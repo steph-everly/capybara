@@ -85,10 +85,15 @@ module Capybara
       return false if @server_thread && @server_thread.join(0)
 
       begin
+        puts "attempting http connection to #{host}:#{port}"
         res = Net::HTTP.start(host, port) { |http| http.get('/__identify__') }
       rescue EOFError
+        puts "attempting https connection to #{host}:#{port}"
         res = Net::HTTP.start(host, port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) { |http| http.get('/__identify__') }
         @using_ssl = true
+      rescue => e
+        puts "Got Exception: #{e.class.name}"
+        raise
       end
 
       if res.is_a?(Net::HTTPSuccess) or res.is_a?(Net::HTTPRedirection)
