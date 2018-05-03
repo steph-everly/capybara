@@ -86,8 +86,10 @@ module Capybara
 
       begin
         puts "attempting http connection to #{host}:#{port}"
-        res = Net::HTTP.start(host, port) { |http| http.get('/__identify__') }
-      rescue EOFError
+        res = Net::HTTP.start(host, port, read_timeout: 2) { |http| http.get('/__identify__') }
+      rescue EOFError, Net::ReadTimeout => e
+        puts "caught #{e.class.name}"
+        puts e.backtrace
         puts "attempting https connection to #{host}:#{port}"
         res = Net::HTTP.start(host, port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) { |http| http.get('/__identify__') }
         @using_ssl = true

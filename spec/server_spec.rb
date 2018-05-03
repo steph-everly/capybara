@@ -73,16 +73,22 @@ RSpec.describe Capybara::Server do
     expect(@res2.body).to include('Hello Second Server')
   end
 
-  it "should support SSL" do
+  it "should support SSL", :focus_ do
     begin
       key = File.join(Dir.pwd, "spec", "fixtures", "key.pem")
       cert = File.join(Dir.pwd, "spec", "fixtures", "certificate.pem")
       Capybara.server = :puma, { Host: "ssl://#{Capybara.server_host}?key=#{key}&cert=#{cert}" }
       app = proc { |_env| [200, {}, ['Hello SSL Server!']] }
       server = Capybara::Server.new(app).boot
+
+      expect {
+        Net::HTTP.start(server.host, server.port) { |http| http.get('/__idntify__') }
+      }.to raise_error(EOFError)
+
       res = Net::HTTP.start(server.host, server.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |https|
         https.get('/')
       end
+
       expect(res.body).to include('Hello SSL Server!')
     ensure
       Capybara.server = :default
