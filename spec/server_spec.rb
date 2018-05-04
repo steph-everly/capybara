@@ -73,7 +73,7 @@ RSpec.describe Capybara::Server do
     expect(@res2.body).to include('Hello Second Server')
   end
 
-  it "should support SSL", :focus_ do
+  it "should support SSL" do
     begin
       key = File.join(Dir.pwd, "spec", "fixtures", "key.pem")
       cert = File.join(Dir.pwd, "spec", "fixtures", "certificate.pem")
@@ -81,9 +81,9 @@ RSpec.describe Capybara::Server do
       app = proc { |_env| [200, {}, ['Hello SSL Server!']] }
       server = Capybara::Server.new(app).boot
 
-      expect {
+      expect do
         Net::HTTP.start(server.host, server.port) { |http| http.get('/__idntify__') }
-      }.to raise_error(EOFError)
+      end.to raise_error(EOFError)
 
       res = Net::HTTP.start(server.host, server.port, use_ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE) do |https|
         https.get('/')
@@ -213,6 +213,22 @@ RSpec.describe Capybara::Server do
     server = Capybara::Server.new(app)
     allow(Net::HTTP).to receive(:start).and_raise(SystemCallError.allocate)
     expect(server.responsive?).to eq false
+  end
+
+  [EOFError, Net::ReadTimeout].each do |err|
+    it "should attempt an HTTPS connection if HTTP connection returns #{err}" do
+      app = -> { [200, {}, ['Hello, world']] }
+      ordered_errors = [Errno::ECONNREFUSED, err]
+      # allow(Net::HTTP).to receive(:start).with(anything, anything, hash_excluding(:use_ssl)).and_yield { raise Errno::ECONNREFUSED }
+      allow(Net::HTTP).to receive(:start).with(anything, anything, hash_excluding(:use_ssl)) do
+        raise ordered_errors.shift
+      end
+      response = Net::HTTPSuccess.allocate
+      allow(response).to receive(:body).and_return app.object_id.to_s
+      allow(Net::HTTP).to receive(:start).with(anything, anything, hash_including(use_ssl: true)).and_return(response).once
+      Capybara::Server.new(app).boot
+      expect(Net::HTTP).to have_received(:start).exactly(3).times
+    end
   end
 
   def start_request(server, wait_time)
